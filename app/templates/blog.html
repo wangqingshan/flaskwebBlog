@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% import "bootstrap/wtf.html" as wtf %}
+{% import "_macros.html" as macros %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='github_markdown.css') }}" type="text/css"/>
+{% endblock %}
+
+{% block title %}{{ blog.title }}{% endblock %}
+{% block page_content %}
+<div class="col-md-8 col-md-offset-2">
+    <h1>{{ blog.title }}</h1>
+
+    <div class="row">
+        <div class="col-md-8">
+            {% include "_labels.html" %}
+            <ul class="list-inline blog-detail-ul">
+                <li>{{ moment(blog.publish_date).format('YYYY年MM月DD日 HH:mm') }}</li>
+                <li>阅读&nbsp{{ blog.views }}</li>
+                <li>评论&nbsp{{ blog.comments.count() }}</li>
+                <li class="favourite-count">喜欢&nbsp{{ blog.favourites.count() }}</li>
+            </ul>
+        </div>
+        <div class="col-md-4 text-right">
+            {% if current_user.is_administrator() %}
+            <a class="btn btn-success blog-edit-btn"
+               href="{{ url_for('main.edit_blog', id=blog.id, type='edit') }}" role="button">编辑</a>
+            <a class="btn btn-warning blog-edit-btn"
+               href="{{ url_for('manage.private_blog', id=blog.id) }}" role="button">私有</a>
+            <a class="btn btn-danger blog-edit-btn"
+               href="{{ url_for('manage.delete_blog', id=blog.id) }}" role="button">删除</a>
+            {%endif %}
+        </div>
+    </div>
+
+    {% if blog.content_html %}
+    <div class="markdown-body">
+        {{ blog.content_html | safe }}
+    </div>
+    {% else %}
+    <div>
+        {{ blog.content }}
+    </div>
+    {% endif %}
+
+    {% if current_user.is_authenticated %}
+    {% if blog.is_current_user_favourite() %}
+    <a class="btn blog-favourite-btn" onclick=favourite({{ blog.id }})
+       role="button">
+        <span class="glyphicon glyphicon-heart" aria-hidden="true"></span>&nbsp喜欢
+    </a>
+    {% else %}
+    <a class="btn blog-unfavourite-btn" onclick=favourite({{ blog.id }})
+       role="button">
+        <span class="glyphicon glyphicon-heart-empty" aria-hidden="true"></span>&nbsp喜欢
+    </a>
+    {% endif %}
+    {% endif %}
+</div>
+
+{% include "_comments.html" %}
+
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+    //禁用或者恢复某条评论
+    disable_enable_comment = function (id) {
+        var li = $('#' + id);
+        if (li.find('.disable_comment').length > 0) {//禁用
+            $.get('/manage/comment/disable', {
+                id: id
+            }).done(function (data) {
+                var content = li.find('.comment-content');
+                var btn = li.find('.disable_comment');
+                btn.text('恢复');
+                btn.removeClass('disable_comment').addClass('enable_comment');
+                content.html('<p class="disable_tip"><b>该评论内容已被管理员屏蔽</b></p>' + content.html());
+            })
+        } else if (li.find('.enable_comment').length > 0) {//恢复
+            $.get('/manage/comment/enable', {
+                id: id
+            }).done(function (data) {
+                var li = $('#' + id);
+                li.find('.disable_tip').remove();
+                var btn = li.find('.enable_comment');
+                btn.text('屏蔽');
+                btn.removeClass('enable_comment').addClass('disable_comment');
+            })
+        }
+    };
+
+    //喜欢或者取消喜欢某篇文章
+    favourite = function (id) {
+        if ($('.blog-favourite-btn').length > 0) {//取消喜欢
+            $.get('/manage/blog/cancel_favourite', {
+                id: id
+            }).done(function (data) {
+                $('.blog-favourite-btn span').removeClass('glyphicon-heart').addClass('glyphicon-heart-empty');
+                $('.blog-favourite-btn').removeClass('blog-favourite-btn').addClass('blog-unfavourite-btn');
+            })
+        } else if ($('.blog-unfavourite-btn').length > 0) {//喜欢
+            $.get('/manage/blog/favourite', {
+                id: id
+            }).done(function (data) {
+                if ('200' === data) {
+                    $('.blog-unfavourite-btn span').removeClass('glyphicon-heart-empty').addClass('glyphicon-heart');
+                    $('.blog-unfavourite-btn').removeClass('blog-unfavourite-btn').addClass('blog-favourite-btn');
+                }
+
+                if ('403' === data) {
+                    alert('没有操作权限');
+                }
+            })
+        }
+    }
+
+</script>
+{% endblock %}
